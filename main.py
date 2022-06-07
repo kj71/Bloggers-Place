@@ -14,6 +14,7 @@ import requests
 import smtplib
 from email.message import EmailMessage
 import os
+import psycopg2
 
 my_email = os.environ.get('Email')
 password = os.environ.get('Password')
@@ -32,7 +33,7 @@ ckeditor = CKEditor(app)
 Bootstrap(app)
 
 ##CONNECT TO DB
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///blog.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL',"sqlite:///blog.db")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
