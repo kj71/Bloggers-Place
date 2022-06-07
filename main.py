@@ -10,7 +10,13 @@ from forms import RegisterForm, LoginForm, CommentForm, CreatePostForm
 from flask_gravatar import Gravatar
 from urllib.parse import urlparse, urljoin
 from functools import wraps
+import requests
+import smtplib
+from email.message import EmailMessage
 import os
+
+my_email = os.environ.get('Email')
+password = os.environ.get('Password')
 
 
 def is_safe_url(target):
@@ -51,6 +57,12 @@ def admin_only(fun):
     return wrapper
 
 
+@app.after_request
+def after_request(response):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
+
+
 ##CONFIGURE TABLES
 
 class BlogPost(db.Model):
@@ -69,8 +81,8 @@ class BlogPost(db.Model):
 class User(UserMixin, db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(250), nullable=False)
-    password = db.Column(db.String(250), unique=True, nullable=False)
+    email = db.Column(db.String(250), unique=True, nullable=False)
+    password = db.Column(db.String(250), nullable=False)
     name = db.Column(db.String(250), nullable=False)
     posts = relationship("BlogPost", back_populates="author")
     comments = relationship("Comment", back_populates="author")
@@ -100,7 +112,7 @@ def load_user(user_id):
 
 @app.route('/')
 def get_all_posts():
-    posts = BlogPost.query.all()
+    posts = BlogPost.query.order_by(BlogPost.date.desc()).all()
     return render_template("index.html", all_posts=posts)
 
 
@@ -119,8 +131,35 @@ def register():
             password=hashed_password,
             name=request.form['name']
         )
+
         db.session.add(new_user)
         db.session.commit()
+
+        msg = EmailMessage()
+        msg['Subject'] = f'Welcome to Bloggers\' Place'
+        msg['From'] = os.environ.get('Email')
+        msg['To'] = request.form['email']
+        message = f'''
+                    Hi, <b>{request.form["name"]}</b>, Thanks for registering at Bloggers' Place.We’re glad to have you as part of our community.
+                    <p>
+                    Here are a few things you can do to get started:
+                    <ul>
+                    <li>Express your views on a topic by creating a blog.</li>
+                    <li>Explore the site and get to know the other members.</li>
+                    <li>Check out the latest blog posts and leave your comments.</li>
+                    </ul>
+                    </p>
+                    I hope you enjoy your time on the site!<br>
+                    Sincerely,<br>
+                    Kavya Jain
+                    '''
+        msg.set_content(message)
+        msg.add_alternative(message, 'html')
+        connection = smtplib.SMTP_SSL("smtp.mail.yahoo.com", port=465)
+        connection.login(user=my_email, password=password)
+        connection.send_message(msg)
+        connection.quit()
+
         return redirect(url_for('login'))
     return render_template("register.html", form=user_form)
 
@@ -171,22 +210,38 @@ def show_post(post_id):
 
 
 @app.route("/about")
-@login_required
 def about():
     return render_template("about.html")
 
 
-@app.route("/contact")
-@login_required
+@app.route('/contact', methods=['GET', 'POST'])
 def contact():
-    return render_template("contact.html")
+    if request.method == 'POST':
+        msg = EmailMessage()
+        msg['Subject'] = f'Message at Bloggers\'s Place by {request.form["name"]}'
+        msg['From'] = os.environ.get('Email')
+        msg['To'] = os.environ.get('Email2')
+        message = f'''
+            Hi, Buddy, Here is a message for you by {request.form["name"]}:
+
+            \"{request.form['message']}\"
+
+            You can reply at {request.form['email']}
+            '''
+        msg.add_alternative(message, 'html')
+        connection = smtplib.SMTP_SSL("smtp.mail.yahoo.com", port=465)
+        connection.login(user=my_email, password=password)
+        connection.send_message(msg)
+        connection.quit()
+        flash('Message sent successfully!!!')
+        return redirect(url_for('contact'))
+    return render_template('contact.html')
 
 
 @app.route("/new-post", methods=['GET', 'POST'])
 @login_required
 def add_new_post():
     form = CreatePostForm()
-    print(current_user)
     if form.validate_on_submit():
         new_post = BlogPost(
             title=form.title.data,
@@ -234,5 +289,5 @@ def delete_post(post_id):
     return redirect(url_for('get_all_posts'))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
