@@ -223,12 +223,10 @@ def contact():
         msg['To'] = os.environ.get('Email2')
         message = f'''
             Hi, Buddy, Here is a message for you by {request.form["name"]}:
-
             \"{request.form['message']}\"
-
             You can reply at {request.form['email']}
             '''
-        msg.add_alternative(message, 'html')
+        msg.set_content(message)
         connection = smtplib.SMTP_SSL("smtp.mail.yahoo.com", port=465)
         connection.login(user=my_email, password=password)
         connection.send_message(msg)
